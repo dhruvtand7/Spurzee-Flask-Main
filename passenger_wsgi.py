@@ -205,7 +205,7 @@ db_config3 = {
 
 def generate_graph(symbol, start_date, end_date, interval, ema_visible,emaval, sr_visible, nsr, trline, dtop, srcands, th, ibars, ema5,box, bth, nbc, hsind, vshape, mestar):
     
-    con = mysql.connector.connect(**db_config)
+    con = mysql.connector.connect(**db_config3)
     cur = con.cursor()
     sym = symbol
     parts = sym.split(':')[-1].replace('-', '_').replace('&', '_')
