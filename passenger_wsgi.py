@@ -1211,7 +1211,7 @@ def register():
     return render_template('signup.html', email_exists=False)
 
 
-@app.route('/graph')
+@app.route('/old-graph')
 def graph():
     if 'email' in session:
         symbol = "NSE:ASIANPAINT-EQ"
@@ -1290,10 +1290,11 @@ def get_50_stocks():
     return jsonify(stocks_50)
 
     
-@app.route('/new-graph')
+@app.route('/graph')
 def new_graph():
-    
-    return render_template('graph.html')
+    if 'email' in session:
+        return render_template('graph.html')
+    return redirect(url_for('login'))
     
 @app.route('/stock-data')
 def get_data():
