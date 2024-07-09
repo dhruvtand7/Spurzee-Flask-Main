@@ -1212,7 +1212,7 @@ def register():
 
 
 @app.route('/old-graph')
-def graph():
+def old_graph():
     if 'email' in session:
         symbol = "NSE:ASIANPAINT-EQ"
         start_date = "2024-03-01"
@@ -1291,7 +1291,7 @@ def get_50_stocks():
 
     
 @app.route('/graph')
-def new_graph():
+def graph():
     if 'email' in session:
         return render_template('graph.html')
     return redirect(url_for('login'))
