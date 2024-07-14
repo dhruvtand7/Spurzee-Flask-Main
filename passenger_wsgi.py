@@ -1275,8 +1275,8 @@ def submit_stock():
         "symbol": new_stock_input,
         "resolution": "5",
         "date_format": "1",
-        "range_from": "2024-04-01",
-        "range_to": "2024-04-01",
+        "range_from": "2024-07-03",
+        "range_to": "2024-07-03",
         "cont_flag": "1"
         }
         df = pd.DataFrame(fyers.history(data=data)['candles'])
@@ -1298,7 +1298,6 @@ def graph():
     
 @app.route('/stock-data')
 def get_data():
-    print('hi4')
     symbol = request.args.get('symbol', 'NSE:NIFTY50-INDEX')
     interval = request.args.get('interval', '5')
     # Fetch data from database
@@ -1308,9 +1307,33 @@ def get_data():
     else:
         return jsonify({'error': 'Data not found'}), 404
 
+@app.route('/support-resistance')
+def get_support_resistance():
+    symbol = request.args.get('symbol', 'NSE:NIFTY50-INDEX')
+    interval = request.args.get('interval', '5')
 
+    data = fetch_data_from_db(symbol, interval)
 
-
+    df = pd.DataFrame(data, columns=['Date','Open','High','Low','Close'])
+    df.columns = ['date', 'open', 'high', 'low', 'close']
+    df['date'] = pd.to_datetime(df['date'])
+    df = df.iloc[-1000:] 
+    
+    prd = 30  
+    nsr = 5
+    
+    sup = df[df.low == df.low.rolling(prd, center=True).min()].low
+    res = df[df.high == df.high.rolling(prd, center=True).max()].high
+    lev = sup.tolist() + res.tolist()
+    lev.sort()
+    
+    kmeans = KMeans(n_clusters=int(nsr), random_state=42).fit(
+        np.array(lev).reshape(-1, 1))
+    lset = []
+    for cluster_center in kmeans.cluster_centers_:
+        closest_index = np.argmin(np.abs(lev - cluster_center))
+        lset.append(lev[closest_index])
+    return jsonify(lset)
 # This line retrieves the WSGI application instance
 application = app.wsgi_app
 

@@ -89,8 +89,41 @@ function selectStock(row) {
   const interval = document.getElementById('interval-select').value;
   const symbol = row.getAttribute('data-symbol');
   fetchData(symbol, interval);
+  if (selectedOptions.includes('sup-res')) {
+    fetchAndDrawSupportResistance(symbol, interval);
+  }
 }
 
+let priceLines = [];
+
+async function fetchAndDrawSupportResistance(symbol, interval) {
+  showSpinner();
+  try {
+    const response = await fetch(`/support-resistance?symbol=${symbol}&interval=${interval}`);
+    const levels = await response.json();
+    priceLines.forEach(line => {
+      candleSeries.removePriceLine(line);
+    });
+    priceLines = [];
+  
+    // Add new price lines
+    levels.forEach(level => {
+      const line = candleSeries.createPriceLine({
+        price: level,
+        color: 'black',
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: 'S&R'
+      });
+      priceLines.push(line);
+    });
+    hideSpinner();
+  } catch (error) {
+    console.error(error);
+    hideSpinner();
+  }
+}
 // Update the change event listener for the interval select
 document.getElementById('interval-select').addEventListener('change', (event) => {
   const interval = event.target.value;
@@ -101,6 +134,9 @@ document.getElementById('interval-select').addEventListener('change', (event) =>
   if (selectedRow) {
     const symbol = selectedRow.getAttribute('data-symbol');
     fetchData(symbol, interval);
+    if (selectedOptions.includes('sup-res')) {
+      fetchAndDrawSupportResistance(symbol, interval);
+    }
   }
 });
 
@@ -153,6 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedOptions = selectedOptions.filter(item => item !== value);
       }
 
+      const selectedRow = document.querySelector('.stock-row.selected');
+      if (selectedRow) {
+        const symbol = selectedRow.getAttribute('data-symbol');
+        const interval = document.getElementById('interval-select').value;
+        if (selectedOptions.includes('sup-res')) {
+          fetchAndDrawSupportResistance(symbol, interval);
+        }
+      }
     });
   });
 
