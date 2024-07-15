@@ -1295,6 +1295,22 @@ def fetch_data_from_db(symbol, interval):
     
     return data
 
+
+def fetch_latest_data(symbol):
+    con = mysql.connector.connect(**db_config3)
+    cur = con.cursor()
+    sym = symbol.split(':')[-1].replace('-', '_').replace('&', '_').lower()
+    query = f"""
+        SELECT `date`, `close`
+        FROM {sym}
+        ORDER BY `date` DESC
+        LIMIT 2
+    """
+    cur.execute(query)
+    rows = cur.fetchall()
+    con.close()
+    return rows
+
 def fetch_currentday_data(symbol, interval):
     dtime_datetime = dt.datetime.now()
     dtime = dtime_datetime.strftime("%Y-%m-%d")
@@ -1512,14 +1528,13 @@ def get_data():
 @app.route('/get-change', methods=['GET'])
 def get_change():
     symbol = request.args.get('symbol', 'NSE:NIFTY50-INDEX')
-    interval = request.args.get('interval', '5')
-    data = fetch_data_from_db(symbol, interval)
+    data = fetch_latest_data(symbol)
     
-    if data:
-        last_close = data[-1]['Close']
-        prev_close = data[-2]['Close'] if len(data) > 1 else last_close
+    if len(data) >= 1:
+        last_close = data[0][1]
+        prev_close = data[1][1] if len(data) > 1 else last_close
         change = last_close - prev_close
-        change_pct = (change / prev_close) * 100
+        change_pct = (change / prev_close) * 100 if prev_close != 0 else 0
         
         result = {
             'last': last_close,

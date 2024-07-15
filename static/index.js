@@ -196,7 +196,7 @@ async function fetchChange(symbol, interval, row) {
       console.error(data.error);
     } else {
       // Update table cells with new data
-      updateTable(symbol, data.last, data.chg, data.chgPct, row);
+      updateTable(symbol, data.last, data.chg.toFixed(2), data.chgPct, row);
     }
 
     hideSpinner();
