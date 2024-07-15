@@ -2,6 +2,13 @@ import os
 import sys
 from flask import Flask, render_template, request, redirect, url_for, session,jsonify
 import pandas as pd
+from bs4 import BeautifulSoup
+from flask import Flask, render_template
+import requests
+import pandas as pd
+import mysql.connector
+from mysql.connector import Error
+from datetime import datetime
 import plotly.graph_objects as go
 import numpy as np
 from plotly.subplots import make_subplots
@@ -200,6 +207,12 @@ db_config3 = {
     'user': 'sqluser1',
     'password': 'TGDp0U&[1Y4S',
     'database': 'stocks'
+}
+db_config4 = {
+    'host': '118.139.182.3',
+    'user': 'sqluser1',
+    'password': 'TGDp0U&[1Y4S',
+    'database': 'news'
 }
 
 
@@ -1076,6 +1089,152 @@ def generate_graph(symbol, start_date, end_date, interval, ema_visible,emaval, s
         ))
     con.close()
     return fig
+
+def create_connection():
+    connection = None
+    try:
+        connection = mysql.connector.connect(**db_config4)
+    except Error as e:
+        print(f"The error '{e}' occurred")
+    return connection
+
+def execute_query(query, data=None):
+    connection = create_connection()
+    cursor = connection.cursor()
+    try:
+        if data:
+            cursor.executemany(query, data)
+        else:
+            cursor.execute(query)
+        connection.commit()
+        print("Query executed successfully")
+    except Error as e:
+        print(f"The error '{e}' occurred")
+    finally:
+        cursor.close()
+        connection.close()
+
+def fetch_existing_data(table_name):
+    connection = create_connection()
+    cursor = connection.cursor()
+    cursor.execute(f"SELECT * FROM {table_name}")
+    existing_data = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    return existing_data
+
+def get_livemint_data():
+    url = "https://www.livemint.com/market/quarterly-results-calendar"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    table = soup.find('table')
+    headers = ["stocks", "result_date", "purpose"]
+    rows = []
+    for row in table.find_all('tr')[1:]:
+        cells = row.find_all('td')
+        cells_text = [cell.text.strip() for cell in cells]
+        rows.append(cells_text)
+
+    df = pd.DataFrame(rows, columns=headers)
+
+    def parse_result_date(date_str):
+        try:
+            return pd.to_datetime(date_str, format='%d %b %Y').strftime('%Y-%m-%d')
+        except ValueError:
+            return None
+
+    df['result_date'] = df['result_date'].apply(parse_result_date)
+    df = df.dropna(subset=['result_date'])
+
+    return df
+
+def get_usi_data():
+    url = "https://www.usinflationcalculator.com/inflation/consumer-price-index-release-schedule/"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    rows = soup.select('tbody > tr')
+    headers = ["release_date", "release_time"]
+    data = []
+    for row in rows:
+        cells = [cell.text.strip() for cell in row.find_all('td')]
+        data.append(cells[1:3])  # Skip the month column and fetch only release_date and release_time
+
+    df = pd.DataFrame(data, columns=headers)
+
+    def parse_release_date(date_str):
+        if not date_str:
+            return None
+        try:
+            return pd.to_datetime(date_str, format='%b. %d, %Y').strftime('%Y-%m-%d')
+        except ValueError:
+            try:
+                return pd.to_datetime(date_str, format='%b %d, %Y').strftime('%Y-%m-%d')
+            except ValueError:
+                return None
+
+    df['release_date'] = df['release_date'].apply(parse_release_date)
+    df = df.dropna(subset=['release_date'])
+
+    return df
+
+def store_data(df, table_name):
+    existing_data = fetch_existing_data(table_name)
+    existing_rows = set([tuple(row[1:]) for row in existing_data])  # Exclude the id column
+
+    new_data = [tuple(row) for row in df.values]
+    new_rows = [row for row in new_data if row not in existing_rows]
+
+    if new_rows:
+        placeholders = ", ".join(["%s"] * len(df.columns))
+        columns = ", ".join(df.columns)
+        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+        execute_query(query, new_rows)
+
+def fetch_data_for_current_month():
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    # Fetch LiveMint data for the current month
+    query_livemint = """
+    SELECT stocks, DATE_FORMAT(result_date, '%Y-%m-%d') as result_date, purpose
+    FROM livemint_data
+    WHERE MONTH(result_date) = %s AND YEAR(result_date) = %s
+    ORDER BY result_date;
+    """
+    cursor.execute(query_livemint, (current_month, current_year))
+    livemint_data = cursor.fetchall()
+    livemint_df = pd.DataFrame(livemint_data, columns=["stocks", "result_date", "purpose"])
+
+    # Fetch USI data for the current month
+    query_usi = """
+    SELECT DATE_FORMAT(release_date, '%Y-%m-%d') as release_date, release_time
+    FROM usi_data
+    WHERE MONTH(release_date) = %s AND YEAR(release_date) = %s
+    ORDER BY release_date;
+    """
+    cursor.execute(query_usi, (current_month, current_year))
+    usi_data = cursor.fetchall()
+    usi_df = pd.DataFrame(usi_data, columns=["release_date", "release_time"])
+
+    cursor.close()
+    connection.close()
+
+    return livemint_df, usi_df
+
+@app.route('/news')
+def news_page():
+    livemint_df = get_livemint_data()
+    usi_df = get_usi_data()
+    
+    livemint_data_html = livemint_df.to_html(classes='table table-striped', index=False)
+    usi_data_html = usi_df.to_html(classes='table table-striped', index=False)
+
+    return render_template('news.html', livemint_data=livemint_data_html, usi_data=usi_data_html)
 
 
 def fetch_data_from_db(symbol, interval):
