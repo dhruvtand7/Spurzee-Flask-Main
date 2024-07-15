@@ -1230,11 +1230,21 @@ def fetch_data_for_current_month():
 def news_page():
     livemint_df = get_livemint_data()
     usi_df = get_usi_data()
-    
-    livemint_data_html = livemint_df.to_html(classes='table table-striped', index=False)
-    usi_data_html = usi_df.to_html(classes='table table-striped', index=False)
 
-    return render_template('news.html', livemint_data=livemint_data_html, usi_data=usi_data_html)
+    # Store data in the database
+    store_data(livemint_df, 'livemint_data')
+    store_data(usi_df, 'usi_data')
+
+    # Fetch data for the current month
+    livemint_df, usi_df = fetch_data_for_current_month()
+
+    # Convert DataFrames to HTML tables
+    livemint_html = livemint_df.to_html(classes='data', index=False)
+    usi_html = usi_df.to_html(classes='data', index=False)
+
+    return render_template('news.html',
+                           livemint_data=livemint_html,
+                           usi_data=usi_html)
 
 
 def fetch_data_from_db(symbol, interval):
