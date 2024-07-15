@@ -1295,6 +1295,37 @@ def fetch_data_from_db(symbol, interval):
     
     return data
 
+def fetch_currentday_data(symbol, interval):
+    dtime_datetime = dt.datetime.now()
+    dtime = dtime_datetime.strftime("%Y-%m-%d")
+    data = {
+            "symbol": symbol,
+            "resolution": interval,
+            "date_format": "1",
+            "range_from": dtime,
+            "range_to": dtime,
+            "cont_flag": "1"
+        }
+    df = fyers.history(data=data)
+    if 'candles' not in df:
+        return []
+    df = pd.DataFrame(df['candles'])
+    df.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+    df['date'] = pd.to_datetime(df['date'], unit='s')
+    df.date = (df.date.dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata'))
+    df['date'] = df['date'].dt.tz_localize(None)
+    df_sorted = df.sort_values(by=['date'], ascending=True)
+    df = df_sorted.drop_duplicates(subset='date', keep='first')
+    df.reset_index(drop=True, inplace=True)
+    df['date'] = df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    data2 = df.rename(columns={
+        'date': 'Date',
+        'open': 'Open',
+        'high': 'High',
+        'low': 'Low',
+        'close': 'Close'
+    }).to_dict(orient='records')
+    return data2
 
 @app.route('/')
 def index():
@@ -1470,7 +1501,9 @@ def get_data():
     symbol = request.args.get('symbol', 'NSE:NIFTY50-INDEX')
     interval = request.args.get('interval', '5')
     # Fetch data from database
-    data = fetch_data_from_db(symbol, interval)
+    data1 = fetch_data_from_db(symbol, interval)
+    data2 = fetch_currentday_data(symbol, interval)
+    data = data1 + data2
     if data:
         return jsonify(data)
     else:
