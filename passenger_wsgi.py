@@ -1508,6 +1508,27 @@ def get_data():
         return jsonify(data)
     else:
         return jsonify({'error': 'Data not found'}), 404
+    
+@app.route('/get-change', methods=['GET'])
+def get_change():
+    symbol = request.args.get('symbol', 'NSE:NIFTY50-INDEX')
+    interval = request.args.get('interval', '5')
+    data = fetch_data_from_db(symbol, interval)
+    
+    if data:
+        last_close = data[-1]['Close']
+        prev_close = data[-2]['Close'] if len(data) > 1 else last_close
+        change = last_close - prev_close
+        change_pct = (change / prev_close) * 100
+        
+        result = {
+            'last': last_close,
+            'chg': change,
+            'chgPct': round(change_pct, 2)
+        }
+        return jsonify(result)
+    else:
+        return jsonify({'error': 'Data not found'}), 404
 
 @app.route('/support-resistance')
 def get_support_resistance():

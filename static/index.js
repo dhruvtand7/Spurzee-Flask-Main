@@ -67,13 +67,26 @@ async function fetchData(symbol, interval) {
       low: parseFloat(d.Low),
       close: parseFloat(d.Close)
     }));
-    // console.log('Fetched and parsed data:', cdata);
     candleSeries.setData(cdata);
     hideSpinner();
   } catch (error) {
     log(error);
     hideSpinner();
   }
+}
+
+// Function to update table cells
+function updateTable(symbol, last, chg, chgPct) {
+  const table = document.getElementById('stock-table');
+  const rows = table.querySelectorAll('.stock-row');
+  
+  rows.forEach(row => {
+    if (row.getAttribute('data-symbol') === symbol) {
+      row.querySelector('td:nth-child(2)').textContent = last;
+      row.querySelector('td:nth-child(3)').textContent = chg >= 0 ? `+${chg}` : chg;
+      row.querySelector('td:nth-child(4)').textContent = `${chgPct}%`;
+    }
+  });
 }
 
 function selectStock(row) {
@@ -146,6 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchPopup = document.getElementById('search-popup');
   const closeButton = document.querySelector('.close-button');
 
+  // Get all stock rows and fetch data for each stock
+  const rows = document.querySelectorAll('.stock-row');
+  rows.forEach(row => {
+    const symbol = row.getAttribute('data-symbol');
+    const interval = document.getElementById('interval-select').value;
+    fetchChange(symbol, interval, row);
+  });
+
   // Search button click event
   searchButton.addEventListener('click', () => {
     searchPopup.style.display = 'block';
@@ -163,6 +184,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// Function to fetch and process data from the new /get-change endpoint
+async function fetchChange(symbol, interval, row) {
+  showSpinner();
+  try {
+    const response = await fetch(`/get-change?symbol=${symbol}&interval=${interval}`);
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error(data.error);
+    } else {
+      // Update table cells with new data
+      updateTable(symbol, data.last, data.chg, data.chgPct, row);
+    }
+
+    hideSpinner();
+  } catch (error) {
+    console.error(error);
+    hideSpinner();
+  }
+}
 
 // Pattern Select Dropdown 
 document.addEventListener('DOMContentLoaded', () => {
