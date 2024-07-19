@@ -16,6 +16,9 @@ const candleSeries = chart.addCandlestickSeries();
 const hoverInfo = document.getElementById('hover-info');
 const spinner = document.getElementById('spinner');
 
+// Initialize selectedOptions array in global scope
+let selectedOptions = [];
+
 // Function to resize the chart
 function resizeChart() {
   chart.resize(domElement.clientWidth, domElement.clientHeight);
@@ -70,7 +73,7 @@ async function fetchData(symbol, interval) {
     candleSeries.setData(cdata);
     hideSpinner();
   } catch (error) {
-    log(error);
+    console.error(error);
     hideSpinner();
   }
 }
@@ -90,20 +93,23 @@ function updateTable(symbol, last, chg, chgPct) {
 }
 
 function selectStock(row) {
-  var rows = document.getElementsByClassName('stock-row');
+  const rows = document.getElementsByClassName('stock-row');
   
-  for (var i = 0; i < rows.length; i++) {
-      rows[i].classList.remove('selected');
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].classList.remove('selected');
   }
   
   row.classList.add('selected');
-  var stockName = row.getElementsByTagName('td')[0].innerText;
+  const stockName = row.getElementsByTagName('td')[0].innerText;
   document.getElementById('selected-stock').textContent = stockName;
   const interval = document.getElementById('interval-select').value;
   const symbol = row.getAttribute('data-symbol');
   fetchData(symbol, interval);
   if (selectedOptions.includes('sup-res')) {
     fetchAndDrawSupportResistance(symbol, interval);
+  }
+  if (selectedOptions.includes('double-tops')) {
+    fetchAndDrawDoubleTops(symbol, interval);
   }
 }
 
@@ -137,6 +143,42 @@ async function fetchAndDrawSupportResistance(symbol, interval) {
     hideSpinner();
   }
 }
+
+let doubleTopAnnotations = [];
+
+async function fetchAndDrawDoubleTops(symbol, interval) {
+  console.log(`Fetching double tops for symbol: ${symbol}, interval: ${interval}`);
+  showSpinner();
+  try {
+    const response = await fetch(`/getdtops?symbol=${symbol}&interval=${interval}`);
+    console.log('Double tops response:', response); // Optional: Log the response object for debugging
+    const patterns = await response.json(); // Corrected to use response instead of response1
+    console.log('Double tops patterns:', patterns);
+    doubleTopAnnotations.forEach(annotation => {
+      chart.removeAnnotation(annotation);
+    });
+    doubleTopAnnotations = [];
+    patterns.forEach(pattern => {
+      pattern.pattern.forEach((index, i) => {
+        const annotation = chart.addAnnotation({
+          time: parseDateTimeToUnix(pattern[`date${i + 1}`]),
+          price: pattern[`high${i + 1}`],
+          text: 'DT',
+          color: 'red',
+          position: 'aboveBar'
+        });
+        doubleTopAnnotations.push(annotation);
+      });
+    });
+    hideSpinner();
+  } catch (error) {
+    console.error(error);
+    hideSpinner();
+  }
+}
+
+
+
 // Update the change event listener for the interval select
 document.getElementById('interval-select').addEventListener('change', (event) => {
   const interval = event.target.value;
@@ -149,6 +191,9 @@ document.getElementById('interval-select').addEventListener('change', (event) =>
     fetchData(symbol, interval);
     if (selectedOptions.includes('sup-res')) {
       fetchAndDrawSupportResistance(symbol, interval);
+    }
+    if (selectedOptions.includes('double-tops')) {
+      fetchAndDrawDoubleTops(symbol, interval);
     }
   }
 });
@@ -212,8 +257,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const dropdownContent = document.getElementById('dropdown-content');
   const options = document.querySelectorAll('.option');
 
-  let selectedOptions = [];
-
   // Toggle dropdown visibility on header click
   dropdownHeader.addEventListener('click', () => {
     dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
@@ -237,6 +280,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const interval = document.getElementById('interval-select').value;
         if (selectedOptions.includes('sup-res')) {
           fetchAndDrawSupportResistance(symbol, interval);
+        }
+        if (selectedOptions.includes('double-tops')) {
+          fetchAndDrawDoubleTops(symbol, interval);
         }
       }
     });

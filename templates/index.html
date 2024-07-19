@@ -263,15 +263,7 @@
                 </label>
               </td>
             </tr>
-            <tr style="display: none;">
-              <td>Double Top</td>
-              <td style="text-align: right;">
-                <label class="switch">
-                  <input type="checkbox" style="display: none;" id="dt">
-                  <span class="slider round"></span>
-                </label>
-              </td>
-            </tr>
+            
             <!-- <tr style="display: none;"> -->
             <tr  >
               <td>No. of candles</td>
@@ -317,6 +309,24 @@
               <td style="text-align: right;">
                 <label class="switch">
                   <input type="checkbox" style="display: none;" id="box">
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr  >
+              <td>Double Tops</td>
+              <td style="text-align: right;">
+                <label class="switch">
+                  <input type="checkbox" style="display: none;" id="dtop">
+                  <span class="slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr  >
+              <td>Double Bottoms</td>
+              <td style="text-align: right;">
+                <label class="switch">
+                  <input type="checkbox" style="display: none;" id="dbottom">
                   <span class="slider round"></span>
                 </label>
               </td>
@@ -374,13 +384,15 @@
       formData.append('emaVisible', document.getElementById('emaCheckbox').checked);
       formData.append('srVisible', document.getElementById('sr').checked);
       formData.append('trVisible', document.getElementById('tr').checked);
-      formData.append('dtop', document.getElementById('dt').checked);
       formData.append('ibars', document.getElementById('ib').checked);
       formData.append('ema5', document.getElementById('e5').checked);
       formData.append('box', document.getElementById('box').checked);
+      
       formData.append('hsind', document.getElementById('hsind').checked);
       formData.append('vshape', document.getElementById('vshape').checked);
       formData.append('mestar', document.getElementById('mestar').checked);
+      formData.append('dtop', document.getElementById('dtop').checked);
+      formData.append('dbottom', document.getElementById('dbottom').checked);
       for (let pair of formData.entries()) {
         // Print key-value pairs to the console
         console.log(pair[0] + ': ' + pair[1]);

@@ -14,6 +14,7 @@ import numpy as np
 from plotly.subplots import make_subplots
 from sklearn.cluster import KMeans
 import pandas_ta as ta
+from sklearn.linear_model import LinearRegression
 import plotly.io as pio
 from sklearn.cluster import DBSCAN
 import json
@@ -166,7 +167,7 @@ import pandas as pd
 
 
 # access_token = response['access_token']
-
+print("Hello World")
 with open("abcd.txt", 'r') as r:
     access_token = r.read()
 
@@ -216,7 +217,7 @@ db_config4 = {
 }
 
 
-def generate_graph(symbol, start_date, end_date, interval, ema_visible,emaval, sr_visible, nsr, trline, dtop, srcands, th, ibars, ema5,box, bth, nbc, hsind, vshape, mestar):
+def generate_graph(symbol, start_date, end_date, interval, ema_visible,emaval, sr_visible, nsr, trline, dtop, dbottom, srcands, th, ibars, ema5,box, bth, nbc, hsind, vshape, mestar):
     
     con = mysql.connector.connect(**db_config3)
     cur = con.cursor()
@@ -704,62 +705,185 @@ def generate_graph(symbol, start_date, end_date, interval, ema_visible,emaval, s
                 ),
                 #textangle=angle 
             )
+    
     if dtop == 'true':
+        def calculate_slope_angle(x, y):
+            model = LinearRegression().fit(x, y)
+            slope = model.coef_[0]
+            angle_deg = math.degrees(math.atan(slope))
+            return slope, angle_deg
+        srcands=10
         sup = df[df.low == df.low.rolling(srcands, center=True).min()].low
-        filtered_supports_indices = []
-        for idx, support in sup.items():
-            left_avg_fall = np.mean(
-                abs(df.low.iloc[idx - int(srcands/2):idx] - support))/support
-            right_avg_fall = np.mean(
-                abs(df.low.iloc[idx:idx + int(srcands/2)] - support))/support
-
-        # If both left and right average falls are greater than the threshold, keep the support
-            if left_avg_fall > th and right_avg_fall > th:
-                filtered_supports_indices.append(idx)
-
-        sup = df.iloc[filtered_supports_indices].low
         res = df[df.high == df.high.rolling(srcands, center=True).max()].high
-        filtered_indices = []
-        for idx, resis in res.items():
-            left_avg_fall = np.mean(
-                abs(df.high.iloc[idx - int(srcands/2):idx] - resis))/resis
-            right_avg_fall = np.mean(
-                abs(df.high.iloc[idx:idx + int(srcands/2)] - resis))/resis
-
-        # If both left and right average falls are greater than the threshold, keep the support
-            if left_avg_fall > th and right_avg_fall > th:
-                filtered_indices.append(idx)
-
-        res = df.iloc[filtered_indices].high
-        price_diff = np.mean(df['high'] - df['low'])/2
+        print(sup,res)
+        price_diff = np.mean(df['high'] - df['low']) / 2
         pat = []
         max_bar_diff = 50
-        min_bar_diff = 7
+        min_bar_diff = 3
         i = 1
         j = 0
         flag = 1
-        while i <= sup.size and j < res.size:
+
+        while i < sup.size and j < res.size:
             if flag == 0 and i < sup.size:
                 if sup.index[i] > pat[0]:
                     pat.append(sup.index[i])
                     flag = 1
                 i += 1
             else:
-                if len(pat) == 0 or res.index[j] > pat[len(pat)-1]:
+                if len(pat) == 0 or res.index[j] > pat[len(pat) - 1]:
                     pat.append(res.index[j])
                     flag = 0
                 else:
                     pat.pop(0)
                     pat.insert(0, res.index[j])
                 j += 1
-            if len(pat) == 3 and pat[2]-pat[0] <= max_bar_diff and pat[2]-pat[1] >= min_bar_diff and pat[1]-pat[0] >= min_bar_diff and abs(res.iloc[j-2]-res.iloc[j-1]) <= price_diff:
-                fig.add_shape(type='line', x0=df['date'][pat[0]], y0=res.iloc[j-2],
-                              x1=df['date'][pat[2]],
-                              y1=res.iloc[j-1]
-                              )
+
+            if len(pat) == 3 and pat[2] - pat[0] <= max_bar_diff and pat[2] - pat[1] >= min_bar_diff and pat[1] - pat[0] >= min_bar_diff and abs(res.iloc[j - 2] - res.iloc[j - 1]) <= price_diff:
+                # Check if the last ten candles before the first pivot high are generally moving upwards
+                start_index = max(0, pat[0] - 20)  # Ensure start_index is at least 0
+                end_index = pat[0]
+
+                # Check if the overall trend is upwards
+                if df['low'].iloc[start_index:end_index].iloc[-1] > df['low'].iloc[start_index:end_index].iloc[0]:
+                    # Linear regression between first top and middle bottom
+                    y1 = df['low'].loc[pat[0]:pat[1]].values
+                    x1 = np.arange(len(y1)).reshape(-1, 1)
+                    slope1, angle1 = calculate_slope_angle(x1, y1)
+
+                    # Linear regression between middle bottom and second top
+                    y2 = df['high'].loc[pat[1]:pat[2]].values
+                    x2 = np.arange(len(y2)).reshape(-1, 1)
+                    slope2, angle2 = calculate_slope_angle(x2, y2)
+
+                    if angle1 < -60 and angle2 > 60:
+                        fig.add_shape(type='line', x0=df['date'][pat[0]], y0=res.iloc[j - 2],
+                                    x1=df['date'][pat[2]], y1=res.iloc[j - 1])
+                        print(pat, "test", angle1, angle2)
+
             if len(pat) == 3:
                 pat.pop(0)
                 pat.pop(0)
+
+    if dbottom == 'true':
+        def calculate_slope_angle(x, y):
+            model = LinearRegression().fit(x, y)
+            slope = model.coef_[0]
+            angle_deg = math.degrees(math.atan(slope))
+            return slope, angle_deg
+
+        srcands = 10
+        sup = df[df.low == df.low.rolling(srcands, center=True).min()].low
+        res = df[df.high == df.high.rolling(srcands, center=True).max()].high
+        print(sup, res)
+        price_diff = np.mean(df['high'] - df['low']) / 2
+        pat = []
+        max_bar_diff = 50
+        min_bar_diff = 3
+        i = 1
+        j = 0
+        flag = 1
+
+        while i < sup.size and j < res.size:
+            if flag == 1 and i < sup.size:
+                if sup.index[i] > pat[0] if pat else True:
+                    pat.append(sup.index[i])
+                    flag = 0
+                i += 1
+            else:
+                if len(pat) == 0 or res.index[j] > pat[len(pat) - 1]:
+                    pat.append(res.index[j])
+                    flag = 1
+                else:
+                    pat.pop(0)
+                    pat.insert(0, res.index[j])
+                j += 1
+
+            if len(pat) == 3 and pat[2] - pat[0] <= max_bar_diff and pat[2] - pat[1] >= min_bar_diff and pat[1] - pat[0] >= min_bar_diff and abs(sup.iloc[i - 2] - sup.iloc[i - 1]) <= price_diff:
+                # Check if the last ten candles before the first pivot low are generally moving downwards
+                start_index = max(0, pat[0] - 20)  # Ensure start_index is at least 0
+                end_index = pat[0]
+
+                # Check if the overall trend is downwards
+                if df['high'].iloc[start_index:end_index].iloc[-1] < df['high'].iloc[start_index:end_index].iloc[0]:
+                    # Linear regression between first bottom and middle top
+                    y1 = df['high'].loc[pat[0]:pat[1]].values
+                    x1 = np.arange(len(y1)).reshape(-1, 1)
+                    slope1, angle1 = calculate_slope_angle(x1, y1)
+
+                    # Linear regression between middle top and second bottom
+                    y2 = df['low'].loc[pat[1]:pat[2]].values
+                    x2 = np.arange(len(y2)).reshape(-1, 1)
+                    slope2, angle2 = calculate_slope_angle(x2, y2)
+
+                    if angle1 > 60 and angle2 < -60:
+                        fig.add_shape(type='line', x0=df['date'][pat[0]], y0=sup.iloc[i - 2],
+                                    x1=df['date'][pat[2]], y1=sup.iloc[i - 1])
+                        print(pat, "test", angle1, angle2)
+
+            if len(pat) == 3:
+                pat.pop(0)
+                pat.pop(0)
+
+        def calculate_slope_angle(x, y):
+            model = LinearRegression().fit(x, y)
+            slope = model.coef_[0]
+            angle_deg = math.degrees(math.atan(slope))
+            return slope, angle_deg
+        srcands=10
+        sup = df[df.low == df.low.rolling(srcands, center=True).min()].low
+        res = df[df.high == df.high.rolling(srcands, center=True).max()].high
+        print(sup,res)
+        price_diff = np.mean(df['high'] - df['low']) / 2
+        pat = []
+        max_bar_diff = 50
+        min_bar_diff = 3
+        i = 1
+        j = 0
+        flag = 1
+
+        while i < sup.size and j < res.size:
+            if flag == 0 and i < sup.size:
+                if sup.index[i] > pat[0]:
+                    pat.append(sup.index[i])
+                    flag = 1
+                i += 1
+            else:
+                if len(pat) == 0 or res.index[j] > pat[len(pat) - 1]:
+                    pat.append(res.index[j])
+                    flag = 0
+                else:
+                    pat.pop(0)
+                    pat.insert(0, res.index[j])
+                j += 1
+
+            if len(pat) == 3 and pat[2] - pat[0] <= max_bar_diff and pat[2] - pat[1] >= min_bar_diff and pat[1] - pat[0] >= min_bar_diff and abs(res.iloc[j - 2] - res.iloc[j - 1]) <= price_diff:
+                # Check if the last ten candles before the first pivot high are generally moving upwards
+                start_index = max(0, pat[0] - 20)  # Ensure start_index is at least 0
+                end_index = pat[0]
+
+                # Check if the overall trend is upwards
+                if df['low'].iloc[start_index:end_index].iloc[-1] > df['low'].iloc[start_index:end_index].iloc[0]:
+                    # Linear regression between first top and middle bottom
+                    y1 = df['low'].loc[pat[0]:pat[1]].values
+                    x1 = np.arange(len(y1)).reshape(-1, 1)
+                    slope1, angle1 = calculate_slope_angle(x1, y1)
+
+                    # Linear regression between middle bottom and second top
+                    y2 = df['high'].loc[pat[1]:pat[2]].values
+                    x2 = np.arange(len(y2)).reshape(-1, 1)
+                    slope2, angle2 = calculate_slope_angle(x2, y2)
+
+                    if angle1 < -60 and angle2 > 60:
+                        fig.add_shape(type='line', x0=df['date'][pat[0]], y0=res.iloc[j - 2],
+                                    x1=df['date'][pat[2]], y1=res.iloc[j - 1])
+                        print(pat, "test", angle1, angle2)
+
+            if len(pat) == 3:
+                pat.pop(0)
+                pat.pop(0)
+
+       
     if ibars == 'true':
         ibs = pd.Series()
         ibp = pd.Series()
@@ -1455,7 +1579,7 @@ def update_graph():
         if not nsr:
             nsr = 0
         trline = request.form['trVisible']
-        graph = generate_graph(symbol, start_date, end_date, interval, 'false', 20, sr_visible, nsr, trline, 'false', 20, 1, 'false', 'false', 'false', 5, 'false', 'false', 'false')
+        graph = generate_graph(symbol, start_date, end_date, interval, 'false', 20, sr_visible, nsr, trline, 'true', 20, 1, 'false', 'false', 'false', 5, 'false', 'false', 'true')
     else:
         symbol = request.form['watchlist-stocks']
         start_date = request.form['start_date']
@@ -1468,6 +1592,7 @@ def update_graph():
             nsr = 0
         trline = request.form['trVisible']
         dtop = request.form['dtop']
+        dbottom = request.form['dbottom']
         ndt = int(request.form['ndt'])
         th = float(request.form['thr'])
         ibars = request.form['ibars']
@@ -1480,7 +1605,7 @@ def update_graph():
         vshape = request.form['vshape']
         mestar = request.form['mestar']
         graph = generate_graph(symbol, start_date, end_date,
-                               interval, ema_visible,emaval, sr_visible, nsr, trline, dtop, ndt, th, ibars, ema5,box,bth,nbc,hsind,vshape,mestar)
+                               interval, ema_visible,emaval, sr_visible, nsr, trline, dtop, dbottom, ndt, th, ibars, ema5,box,bth,nbc,hsind,vshape,mestar)
     return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
 @app.route('/submit_stock', methods=['POST'])

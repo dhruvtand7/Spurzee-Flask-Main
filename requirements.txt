@@ -5,7 +5,9 @@ scikit-learn
 pandas_ta
 fyers-apiv3
 pyotp
+mysql
 mysql-connector-python
+
 numpy
 pytz
 requests
